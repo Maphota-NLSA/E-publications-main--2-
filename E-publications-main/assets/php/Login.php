@@ -1,40 +1,61 @@
 <?php
 // Start session
 session_start();
+
 // Database connection parameters
 include 'conn.php';
 
-// // Create connection
-// $conn = new mysqli($servername, $username, $password, $database);
-
-// Check connection
-// if ($conn->connect_error) {
-//     die("Connection failed: " . $conn->connect_error);
-// }
-$username = $_POST['email'];
-$password = $_POST['password'];
 // Check if the form is submitted
-if (trim($username)!=""and trim($password)!= "") {
-    // Retrieve form data
-    echo"it reaches this point";
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Retrieve and sanitize user inputs
+    $username = trim($_POST['email']);
+    $password = trim($_POST['password']);
 
+    // Validate input fields
+    if (!empty($username) && !empty($password)) {
+        try {
+            // Prepare a SQL statement to prevent SQL injection
+            $sql = $conn->prepare("SELECT * FROM users WHERE EmailAddress = ?");
+            $sql->bind_param("s", $username);
 
-    // Perform SQL query to check user credentials
-    $sql = "SELECT * FROM users WHERE EmailAddress = '$username' AND Password = '$password'";
-    $result = $conn->query($sql);
-    
-    // Check if user exists
-    if ($result->num_rows > 0) {
-        // User authenticated successfully, set session variables
-        $_SESSION['email'] = $username;
-        // Redirect to dashboard or desired page
-        header("Location:../../application files/index.html");
-        exit();
+            // Execute the query
+            $sql->execute();
+            $result = $sql->get_result();
+
+            // Check if the user exists
+            if ($result->num_rows > 0) {
+                // Fetch the user record
+                $user = $result->fetch_assoc();
+
+                // Verify the password
+                if (password_verify($password, $user['Password'])) {
+                    // Password is correct, set session variables
+                    $_SESSION['email'] = $username;
+
+                    // Redirect to the catalog dashboard
+                    header("Location: Login.php");
+                    exit();
+                } else {
+                    // Invalid password
+                    echo "Invalid email or password.";
+                }
+            } else {
+                // User not found
+                echo "Invalid email or password.";
+            }
+
+            // Close the statement
+            $sql->close();
+        } catch (Exception $e) {
+            // Log error for debugging and display a generic error message
+            error_log("Error during login: " . $e->getMessage());
+            echo "An error occurred. Please try again later.";
+        }
     } else {
-        // Invalid credentials, display error message
-        echo "Invalid email or password.";
+        echo "Please fill in all fields.";
     }
 }
 
-// Close connection
+// Close the connection
 $conn->close();
+?>
